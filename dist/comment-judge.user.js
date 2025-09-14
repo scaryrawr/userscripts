@@ -12359,7 +12359,6 @@ var main = async () => {
   const responseConstraint = zod_default.toJSONSchema(responseSchema);
   const commentSelector = window.location.hostname.includes("github") ? "textarea.js-comment-field" : 'textarea[aria-label="Add a comment"]';
   const observer = new MutationObserver((mutations) => {
-    const sessionMap = new WeakMap;
     const emojiPlaceholders = new WeakMap;
     const debounceTimers = new WeakMap;
     const DEBOUNCE_MS = 500;
@@ -12387,8 +12386,6 @@ var main = async () => {
             return;
           navigator.clipboard.writeText(suggestion);
         };
-        const nodeSession = session.clone();
-        sessionMap.set(textarea, nodeSession);
         textarea.addEventListener("input", (e) => {
           const target = e.target;
           if (!(target instanceof HTMLTextAreaElement))
@@ -12399,19 +12396,21 @@ var main = async () => {
           const timer = window.setTimeout(async () => {
             debounceTimers.delete(target);
             const userInput = target.value;
-            const lm = await nodeSession;
-            const response = await lm.prompt(`The user wants to comment:
+            const lm = await session.clone();
+            try {
+              const response = await lm.prompt(`The user wants to comment:
             <comment>${userInput}</comment>
             
             Please rate with a single emoji the constructiveness of this comment.`, {
-              responseConstraint
-            });
-            try {
+                responseConstraint
+              });
               const parsed = JSON.parse(response);
               const { emoji: emoji3, suggestion } = responseSchema.parse(parsed);
               emojiSpan.textContent = emoji3;
               emojiSpan.title = suggestion ?? "";
-            } catch {}
+            } catch {} finally {
+              lm.destroy();
+            }
           }, DEBOUNCE_MS);
           debounceTimers.set(target, timer);
         });
@@ -12419,9 +12418,6 @@ var main = async () => {
       mutation.removedNodes.forEach((node) => {
         if (!(node instanceof HTMLTextAreaElement))
           return;
-        const nodeSession = sessionMap.get(node);
-        sessionMap.delete(node);
-        nodeSession?.then((s) => s.destroy());
         const timer = debounceTimers.get(node);
         debounceTimers.delete(node);
         if (timer)

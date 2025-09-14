@@ -32,11 +32,6 @@ const main = async () => {
     : 'textarea[aria-label="Add a comment"]';
 
   const observer = new MutationObserver((mutations) => {
-    // Map to hold per-textarea debounce timers so we avoid prompting on every keystroke.
-    const sessionMap = new WeakMap<
-      HTMLTextAreaElement,
-      Promise<LanguageModel>
-    >();
     const emojiPlaceholders = new WeakMap<HTMLTextAreaElement, HTMLElement>();
     const debounceTimers = new WeakMap<HTMLTextAreaElement, number>();
     const DEBOUNCE_MS = 500;
@@ -65,8 +60,6 @@ const main = async () => {
           navigator.clipboard.writeText(suggestion);
         };
 
-        const nodeSession = session.clone();
-        sessionMap.set(textarea, nodeSession);
         textarea.addEventListener("input", (e) => {
           const target = e.target;
           if (!(target instanceof HTMLTextAreaElement)) return;
@@ -79,24 +72,28 @@ const main = async () => {
           const timer = window.setTimeout(async () => {
             debounceTimers.delete(target);
             const userInput = target.value;
-            const lm = await nodeSession;
-            const response = await lm.prompt(
-              `The user wants to comment:
+
+            // Always start with an empty session to avoid confusing the LLM.
+            const lm = await session.clone();
+            try {
+              const response = await lm.prompt(
+                `The user wants to comment:
             <comment>${userInput}</comment>
             
             Please rate with a single emoji the constructiveness of this comment.`,
-              {
-                responseConstraint,
-              }
-            );
+                {
+                  responseConstraint,
+                }
+              );
 
-            try {
               const parsed = JSON.parse(response);
               const { emoji, suggestion } = responseSchema.parse(parsed);
               emojiSpan.textContent = emoji;
               emojiSpan.title = suggestion ?? "";
             } catch {
               // ignore parse errors
+            } finally {
+              lm.destroy();
             }
           }, DEBOUNCE_MS);
 
@@ -106,9 +103,6 @@ const main = async () => {
 
       mutation.removedNodes.forEach((node) => {
         if (!(node instanceof HTMLTextAreaElement)) return;
-        const nodeSession = sessionMap.get(node);
-        sessionMap.delete(node);
-        nodeSession?.then((s) => s.destroy());
 
         const timer = debounceTimers.get(node);
         debounceTimers.delete(node);
