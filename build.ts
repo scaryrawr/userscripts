@@ -19,5 +19,14 @@ for (const name of readdirSync(entriesDir)) {
     target: "browser",
   });
 
+  await Bun.build({
+    entrypoints: [entryPath],
+    outdir: outDir,
+    naming: `${name}-mini.user.js`,
+    minify: true,
+    banner,
+    target: "browser",
+  });
+
   console.log(`✅ Built ${name}`);
 }
