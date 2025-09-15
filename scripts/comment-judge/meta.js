@@ -9,4 +9,3 @@
 // @match        https://github.com/*/pull/*
 // @grant        none
 // ==/UserScript==
-"use strict";
