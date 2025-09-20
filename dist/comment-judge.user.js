@@ -12339,10 +12339,10 @@ config(en_default());
 var zod_default = exports_external;
 
 // scripts/comment-judge/index.ts
-var main = async () => {
+var main = () => {
   if (!window.LanguageModel)
     return;
-  const session = await LanguageModel.create({
+  const sessionPromise = LanguageModel.create({
     initialPrompts: [
       {
         role: "system",
@@ -12357,8 +12357,6 @@ var main = async () => {
   const responseConstraint = zod_default.toJSONSchema(responseSchema);
   const commentSelector = window.location.hostname.includes("github") ? "textarea.js-comment-field" : 'textarea[aria-label="Add a comment"]';
   const observer = new MutationObserver((mutations) => {
-    const emojiPlaceholders = new WeakMap;
-    const debounceTimers = new WeakMap;
     const DEBOUNCE_MS = 500;
     for (const mutation of mutations) {
       if (mutation.type !== "childList")
@@ -12374,7 +12372,6 @@ var main = async () => {
         emojiSpan.className = "emoji-feedback";
         if (!(emojiSpan instanceof HTMLElement))
           return;
-        emojiPlaceholders.set(textarea, emojiSpan);
         if (!emojiSpan.isConnected) {
           textarea.parentElement?.appendChild(emojiSpan);
         }
@@ -12384,45 +12381,39 @@ var main = async () => {
             return;
           navigator.clipboard.writeText(suggestion);
         };
+        let abortController = undefined;
+        let timer = undefined;
         textarea.addEventListener("input", (e) => {
           const target = e.target;
           if (!(target instanceof HTMLTextAreaElement))
             return;
-          const existing = debounceTimers.get(target);
-          if (existing)
-            clearTimeout(existing);
-          const timer = window.setTimeout(async () => {
-            debounceTimers.delete(target);
+          if (timer)
+            clearTimeout(timer);
+          abortController?.abort();
+          abortController = new AbortController;
+          const signal = abortController.signal;
+          timer = window.setTimeout(() => {
             const userInput = target.value;
-            const lm = await session.clone();
-            try {
-              const response = await lm.prompt(`The user wants to comment:
+            sessionPromise.then(async (session) => {
+              const lm = await session.clone();
+              try {
+                const response = await lm.prompt(`The user wants to comment:
             <comment>${userInput}</comment>
             
             Please rate with a single emoji the constructiveness of this comment. Please provide a suggested replacement if the comment is not constructive.`, {
-                responseConstraint
-              });
-              const parsed = JSON.parse(response);
-              const { emoji: emoji3, suggestion } = responseSchema.parse(parsed);
-              emojiSpan.textContent = emoji3;
-              emojiSpan.title = suggestion ?? "";
-            } catch {} finally {
-              lm.destroy();
-            }
+                  responseConstraint,
+                  signal
+                });
+                const parseResults = responseSchema.safeParse(JSON.parse(response));
+                const { emoji: emoji3, suggestion } = parseResults.success ? parseResults.data : { emoji: "⏳", suggestion: "" };
+                emojiSpan.textContent = emoji3;
+                emojiSpan.title = suggestion ?? "";
+              } catch {} finally {
+                lm.destroy();
+              }
+            }).catch(() => {});
           }, DEBOUNCE_MS);
-          debounceTimers.set(target, timer);
         });
-      });
-      mutation.removedNodes.forEach((node) => {
-        if (!(node instanceof HTMLTextAreaElement))
-          return;
-        const timer = debounceTimers.get(node);
-        debounceTimers.delete(node);
-        if (timer)
-          clearTimeout(timer);
-        const emojiSpan = emojiPlaceholders.get(node);
-        emojiPlaceholders.delete(node);
-        emojiSpan?.remove();
       });
     }
   });

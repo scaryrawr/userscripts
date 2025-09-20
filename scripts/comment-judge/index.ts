@@ -1,9 +1,9 @@
 import z from "zod";
 
-const main = async () => {
+const main = () => {
   if (!window.LanguageModel) return;
 
-  const session = await LanguageModel.create({
+  const sessionPromise = LanguageModel.create({
     initialPrompts: [
       {
         role: "system",
@@ -14,15 +14,8 @@ const main = async () => {
   });
 
   const responseSchema = z.object({
-    emoji: z
-      .string()
-      .describe(
-        "A single emoji representing the constructiveness of the comment"
-      ),
-    suggestion: z
-      .string()
-      .optional()
-      .describe("Replacement text for the comment to be more constructive"),
+    emoji: z.string().describe("A single emoji representing the constructiveness of the comment"),
+    suggestion: z.string().optional().describe("Replacement text for the comment to be more constructive"),
   });
 
   const responseConstraint = z.toJSONSchema(responseSchema);
@@ -32,8 +25,6 @@ const main = async () => {
     : 'textarea[aria-label="Add a comment"]';
 
   const observer = new MutationObserver((mutations) => {
-    const emojiPlaceholders = new WeakMap<HTMLTextAreaElement, HTMLElement>();
-    const debounceTimers = new WeakMap<HTMLTextAreaElement, number>();
     const DEBOUNCE_MS = 500;
 
     for (const mutation of mutations) {
@@ -44,12 +35,10 @@ const main = async () => {
 
         if (!(textarea instanceof HTMLTextAreaElement)) return;
 
-        const emojiSpan =
-          node.querySelector(".emoji-feedback") ?? document.createElement("h1");
+        const emojiSpan = node.querySelector(".emoji-feedback") ?? document.createElement("h1");
         emojiSpan.textContent = "⏳";
         emojiSpan.className = "emoji-feedback";
         if (!(emojiSpan instanceof HTMLElement)) return;
-        emojiPlaceholders.set(textarea, emojiSpan);
         if (!emojiSpan.isConnected) {
           textarea.parentElement?.appendChild(emojiSpan);
         }
@@ -57,60 +46,57 @@ const main = async () => {
         emojiSpan.onclick = () => {
           const suggestion = emojiSpan.title;
           if (!suggestion) return;
-          navigator.clipboard.writeText(suggestion);
+          void navigator.clipboard.writeText(suggestion);
         };
 
+        let abortController: AbortController | undefined = undefined;
+        let timer: number | undefined = undefined;
         textarea.addEventListener("input", (e) => {
           const target = e.target;
           if (!(target instanceof HTMLTextAreaElement)) return;
 
           // reset any existing timer
-          const existing = debounceTimers.get(target);
-          if (existing) clearTimeout(existing);
+          if (timer) clearTimeout(timer);
+          abortController?.abort();
 
           // schedule a debounced prompt
-          const timer = window.setTimeout(async () => {
-            debounceTimers.delete(target);
+          abortController = new AbortController();
+          const signal = abortController.signal;
+          timer = window.setTimeout(() => {
             const userInput = target.value;
-
-            // Always start with an empty session to avoid confusing the LLM.
-            const lm = await session.clone();
-            try {
-              const response = await lm.prompt(
-                `The user wants to comment:
+            sessionPromise
+              .then(async (session) => {
+                // Always start with an empty session to avoid confusing the LLM.
+                const lm = await session.clone();
+                try {
+                  const response = await lm.prompt(
+                    `The user wants to comment:
             <comment>${userInput}</comment>
             
             Please rate with a single emoji the constructiveness of this comment. Please provide a suggested replacement if the comment is not constructive.`,
-                {
-                  responseConstraint,
+                    {
+                      responseConstraint,
+                      signal,
+                    },
+                  );
+
+                  const parseResults = responseSchema.safeParse(JSON.parse(response));
+                  const { emoji, suggestion } = parseResults.success
+                    ? parseResults.data
+                    : { emoji: "⏳", suggestion: "" };
+                  emojiSpan.textContent = emoji;
+                  emojiSpan.title = suggestion ?? "";
+                } catch {
+                  // ignore errors
+                } finally {
+                  lm.destroy();
                 }
-              );
-
-              const parsed = JSON.parse(response);
-              const { emoji, suggestion } = responseSchema.parse(parsed);
-              emojiSpan.textContent = emoji;
-              emojiSpan.title = suggestion ?? "";
-            } catch {
-              // ignore parse errors
-            } finally {
-              lm.destroy();
-            }
+              })
+              .catch(() => {
+                // ignore error
+              });
           }, DEBOUNCE_MS);
-
-          debounceTimers.set(target, timer);
         });
-      });
-
-      mutation.removedNodes.forEach((node) => {
-        if (!(node instanceof HTMLTextAreaElement)) return;
-
-        const timer = debounceTimers.get(node);
-        debounceTimers.delete(node);
-        if (timer) clearTimeout(timer);
-
-        const emojiSpan = emojiPlaceholders.get(node);
-        emojiPlaceholders.delete(node);
-        emojiSpan?.remove();
       });
     }
   });
