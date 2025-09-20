@@ -67,21 +67,21 @@ const main = async (): Promise<void> => {
 
 Summarized (full list in `AGENTS.md`):
 
-* TypeScript (strict) + async/await
-* Prefer `const`, arrow functions, destructuring
-* CamelCase for variables/functions; PascalCase for types; kebab-case folders
-* Use optional chaining (`?.`) and nullish coalescing (`??`)
-* `WeakMap` for DOM element associations
-* Silent JSON parse errors (fail open) where resilience > correctness
-* Direct DOM APIs (`document.createElement`, `querySelector`)
+- TypeScript (strict) + async/await
+- Prefer `const`, arrow functions, destructuring
+- CamelCase for variables/functions; PascalCase for types; kebab-case folders
+- Use optional chaining (`?.`) and nullish coalescing (`??`)
+- `WeakMap` for DOM element associations
+- Silent JSON parse errors (fail open) where resilience > correctness
+- Direct DOM APIs (`document.createElement`, `querySelector`)
 
 ## 🧵 Build Details
 
 `build.ts` walks each directory in `scripts/`, reads `meta.js` as a banner, and calls `Bun.build` with:
 
-* `naming: <name>.user.js`
-* `target: browser`
-* No minification (readable output for quick inspection)
+- `naming: <name>.user.js`
+- `target: browser`
+- No minification (readable output for quick inspection)
 
 If you need a single script build, just adapt the loop or temporarily comment others.
 

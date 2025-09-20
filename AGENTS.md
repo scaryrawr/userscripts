@@ -1,16 +1,19 @@
 # Agents Guide
 
 ## Build/Test Commands
+
 - `bun run build.ts` - Build all userscripts to dist/ folder
 - `npm run typecheck` - Type check with TypeScript
 - No test framework configured
 
 ## Project Structure
+
 - `scripts/[name]/index.ts` - Main userscript entry points
 - `scripts/[name]/meta.js` - Tampermonkey metadata banner
 - `types/` - TypeScript declarations
 
 ## Code Style
+
 - Use TypeScript with strict mode enabled
 - Import style: Named imports (`import z from "zod"`)
 - Use async/await for async operations
