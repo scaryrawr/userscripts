@@ -2175,7 +2175,7 @@ class Doc {
 var version = {
   major: 4,
   minor: 1,
-  patch: 8
+  patch: 9
 };
 
 // node_modules/zod/v4/core/schemas.js
@@ -12346,7 +12346,7 @@ var main = async () => {
     initialPrompts: [
       {
         role: "system",
-        content: "You are a constructive feedback meter. Rate the constructive feedback of the user's input with an emoji. This emoji will be used to encourage or discourage the user from posting their comment. You may also provide a replacement comment that is more constructive."
+        content: "You are a constructive feedback meter for user comments. Rate the constructive feedback of the user's input with an emoji. This emoji will be used to encourage or discourage the user from posting their comment. You may also provide a replacement comment that is more constructive."
       }
     ]
   });
@@ -12399,7 +12399,7 @@ var main = async () => {
               const response = await lm.prompt(`The user wants to comment:
             <comment>${userInput}</comment>
             
-            Please rate with a single emoji the constructiveness of this comment.`, {
+            Please rate with a single emoji the constructiveness of this comment. Please provide a suggested replacement if the comment is not constructive.`, {
                 responseConstraint
               });
               const parsed = JSON.parse(response);
