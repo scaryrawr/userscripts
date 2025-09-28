@@ -1,3 +1,1 @@
 bun format
-bun lint
-bun build.ts
