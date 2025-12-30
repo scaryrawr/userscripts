@@ -54,6 +54,7 @@ __export(exports_external, {
   string: () => string2,
   strictObject: () => strictObject,
   startsWith: () => _startsWith,
+  slugify: () => _slugify,
   size: () => _size,
   setErrorMap: () => setErrorMap,
   set: () => set,
@@ -99,9 +100,11 @@ __export(exports_external, {
   minSize: () => _minSize,
   minLength: () => _minLength,
   mime: () => _mime,
+  meta: () => meta2,
   maxSize: () => _maxSize,
   maxLength: () => _maxLength,
   map: () => map,
+  mac: () => mac2,
   lte: () => _lte,
   lt: () => _lt,
   lowercase: () => _lowercase,
@@ -146,6 +149,7 @@ __export(exports_external, {
   email: () => email2,
   e164: () => e1642,
   discriminatedUnion: () => discriminatedUnion,
+  describe: () => describe2,
   decodeAsync: () => decodeAsync2,
   decode: () => decode2,
   date: () => date3,
@@ -204,6 +208,7 @@ __export(exports_external, {
   ZodNanoID: () => ZodNanoID,
   ZodNaN: () => ZodNaN,
   ZodMap: () => ZodMap,
+  ZodMAC: () => ZodMAC,
   ZodLiteral: () => ZodLiteral,
   ZodLazy: () => ZodLazy,
   ZodKSUID: () => ZodKSUID,
@@ -269,6 +274,7 @@ __export(exports_core2, {
   prettifyError: () => prettifyError,
   parseAsync: () => parseAsync,
   parse: () => parse,
+  meta: () => meta,
   locales: () => exports_locales,
   isValidJWT: () => isValidJWT,
   isValidBase64URL: () => isValidBase64URL,
@@ -279,6 +285,7 @@ __export(exports_core2, {
   flattenError: () => flattenError,
   encodeAsync: () => encodeAsync,
   encode: () => encode,
+  describe: () => describe,
   decodeAsync: () => decodeAsync,
   decode: () => decode,
   config: () => config,
@@ -310,6 +317,7 @@ __export(exports_core2, {
   _stringFormat: () => _stringFormat,
   _string: () => _string,
   _startsWith: () => _startsWith,
+  _slugify: () => _slugify,
   _size: () => _size,
   _set: () => _set,
   _safeParseAsync: () => _safeParseAsync,
@@ -351,6 +359,7 @@ __export(exports_core2, {
   _maxLength: () => _maxLength,
   _max: () => _lte,
   _map: () => _map,
+  _mac: () => _mac,
   _lte: () => _lte,
   _lt: () => _lt,
   _lowercase: () => _lowercase,
@@ -451,6 +460,7 @@ __export(exports_core2, {
   $ZodNanoID: () => $ZodNanoID,
   $ZodNaN: () => $ZodNaN,
   $ZodMap: () => $ZodMap,
+  $ZodMAC: () => $ZodMAC,
   $ZodLiteral: () => $ZodLiteral,
   $ZodLazy: () => $ZodLazy,
   $ZodKSUID: () => $ZodKSUID,
@@ -520,20 +530,29 @@ var NEVER = Object.freeze({
 });
 function $constructor(name, initializer, params) {
   function init(inst, def) {
-    var _a;
-    Object.defineProperty(inst, "_zod", {
-      value: inst._zod ?? {},
-      enumerable: false
-    });
-    (_a = inst._zod).traits ?? (_a.traits = new Set);
+    if (!inst._zod) {
+      Object.defineProperty(inst, "_zod", {
+        value: {
+          def,
+          constr: _,
+          traits: new Set
+        },
+        enumerable: false
+      });
+    }
+    if (inst._zod.traits.has(name)) {
+      return;
+    }
     inst._zod.traits.add(name);
     initializer(inst, def);
-    for (const k in _.prototype) {
-      if (!(k in inst))
-        Object.defineProperty(inst, k, { value: _.prototype[k].bind(inst) });
+    const proto = _.prototype;
+    const keys = Object.keys(proto);
+    for (let i = 0;i < keys.length; i++) {
+      const k = keys[i];
+      if (!(k in inst)) {
+        inst[k] = proto[k].bind(inst);
+      }
     }
-    inst._zod.constr = _;
-    inst._zod.def = def;
   }
   const Parent = params?.Parent ?? Object;
 
@@ -589,6 +608,7 @@ __export(exports_util, {
   uint8ArrayToBase64url: () => uint8ArrayToBase64url,
   uint8ArrayToBase64: () => uint8ArrayToBase64,
   stringifyPrimitive: () => stringifyPrimitive,
+  slugify: () => slugify,
   shallowClone: () => shallowClone,
   safeExtend: () => safeExtend,
   required: () => required,
@@ -776,6 +796,9 @@ function randomString(length = 10) {
 function esc(str) {
   return JSON.stringify(str);
 }
+function slugify(input) {
+  return input.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[\s_-]+/g, "-").replace(/^-+|-+$/g, "");
+}
 var captureStackTrace = "captureStackTrace" in Error ? Error.captureStackTrace : (..._args) => {};
 function isObject(data) {
   return typeof data === "object" && data !== null && !Array.isArray(data);
@@ -797,6 +820,8 @@ function isPlainObject(o) {
     return false;
   const ctor = o.constructor;
   if (ctor === undefined)
+    return true;
+  if (typeof ctor !== "function")
     return true;
   const prot = ctor.prototype;
   if (isObject(prot) === false)
@@ -1242,10 +1267,7 @@ function flattenError(error, mapper = (issue2) => issue2.message) {
   }
   return { formErrors, fieldErrors };
 }
-function formatError(error, _mapper) {
-  const mapper = _mapper || function(issue2) {
-    return issue2.message;
-  };
+function formatError(error, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
   const processError = (error2) => {
     for (const issue2 of error2.issues) {
@@ -1278,10 +1300,7 @@ function formatError(error, _mapper) {
   processError(error);
   return fieldErrors;
 }
-function treeifyError(error, _mapper) {
-  const mapper = _mapper || function(issue2) {
-    return issue2.message;
-  };
+function treeifyError(error, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
   const processError = (error2, path = []) => {
     var _a, _b;
@@ -1473,6 +1492,7 @@ __export(exports_regexes, {
   md5_hex: () => md5_hex,
   md5_base64url: () => md5_base64url,
   md5_base64: () => md5_base64,
+  mac: () => mac,
   lowercase: () => lowercase,
   ksuid: () => ksuid,
   ipv6: () => ipv6,
@@ -1530,6 +1550,10 @@ function emoji() {
 }
 var ipv4 = /^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])$/;
 var ipv6 = /^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$/;
+var mac = (delimiter) => {
+  const escapedDelim = escapeRegex(delimiter ?? ":");
+  return new RegExp(`^(?:[0-9A-F]{2}${escapedDelim}){5}[0-9A-F]{2}$|^(?:[0-9a-f]{2}${escapedDelim}){5}[0-9a-f]{2}$`);
+};
 var cidrv4 = /^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\/([0-9]|[1-2][0-9]|3[0-2])$/;
 var cidrv6 = /^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|::|([0-9a-fA-F]{1,4})?::([0-9a-fA-F]{1,4}:?){0,6})\/(12[0-8]|1[01][0-9]|[1-9]?[0-9])$/;
 var base64 = /^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$/;
@@ -2175,7 +2199,7 @@ class Doc {
 var version = {
   major: 4,
   minor: 1,
-  patch: 11
+  patch: 13
 };
 
 // node_modules/zod/v4/core/schemas.js
@@ -2352,7 +2376,7 @@ var $ZodURL = /* @__PURE__ */ $constructor("$ZodURL", (inst, def) => {
             code: "invalid_format",
             format: "url",
             note: "Invalid hostname",
-            pattern: hostname.source,
+            pattern: def.hostname.source,
             input: payload.value,
             inst,
             continue: !def.abort
@@ -2437,18 +2461,12 @@ var $ZodISODuration = /* @__PURE__ */ $constructor("$ZodISODuration", (inst, def
 var $ZodIPv4 = /* @__PURE__ */ $constructor("$ZodIPv4", (inst, def) => {
   def.pattern ?? (def.pattern = ipv4);
   $ZodStringFormat.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
-    bag.format = `ipv4`;
-  });
+  inst._zod.bag.format = `ipv4`;
 });
 var $ZodIPv6 = /* @__PURE__ */ $constructor("$ZodIPv6", (inst, def) => {
   def.pattern ?? (def.pattern = ipv6);
   $ZodStringFormat.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
-    bag.format = `ipv6`;
-  });
+  inst._zod.bag.format = `ipv6`;
   inst._zod.check = (payload) => {
     try {
       new URL(`http://[${payload.value}]`);
@@ -2462,6 +2480,11 @@ var $ZodIPv6 = /* @__PURE__ */ $constructor("$ZodIPv6", (inst, def) => {
       });
     }
   };
+});
+var $ZodMAC = /* @__PURE__ */ $constructor("$ZodMAC", (inst, def) => {
+  def.pattern ?? (def.pattern = mac(def.delimiter));
+  $ZodStringFormat.init(inst, def);
+  inst._zod.bag.format = `mac`;
 });
 var $ZodCIDRv4 = /* @__PURE__ */ $constructor("$ZodCIDRv4", (inst, def) => {
   def.pattern ?? (def.pattern = cidrv4);
@@ -2510,9 +2533,7 @@ function isValidBase64(data) {
 var $ZodBase64 = /* @__PURE__ */ $constructor("$ZodBase64", (inst, def) => {
   def.pattern ?? (def.pattern = base64);
   $ZodStringFormat.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
-    inst2._zod.bag.contentEncoding = "base64";
-  });
+  inst._zod.bag.contentEncoding = "base64";
   inst._zod.check = (payload) => {
     if (isValidBase64(payload.value))
       return;
@@ -2535,9 +2556,7 @@ function isValidBase64URL(data) {
 var $ZodBase64URL = /* @__PURE__ */ $constructor("$ZodBase64URL", (inst, def) => {
   def.pattern ?? (def.pattern = base64url);
   $ZodStringFormat.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
-    inst2._zod.bag.contentEncoding = "base64url";
-  });
+  inst._zod.bag.contentEncoding = "base64url";
   inst._zod.check = (payload) => {
     if (isValidBase64URL(payload.value))
       return;
@@ -2625,7 +2644,7 @@ var $ZodNumber = /* @__PURE__ */ $constructor("$ZodNumber", (inst, def) => {
     return payload;
   };
 });
-var $ZodNumberFormat = /* @__PURE__ */ $constructor("$ZodNumber", (inst, def) => {
+var $ZodNumberFormat = /* @__PURE__ */ $constructor("$ZodNumberFormat", (inst, def) => {
   $ZodCheckNumberFormat.init(inst, def);
   $ZodNumber.init(inst, def);
 });
@@ -2668,7 +2687,7 @@ var $ZodBigInt = /* @__PURE__ */ $constructor("$ZodBigInt", (inst, def) => {
     return payload;
   };
 });
-var $ZodBigIntFormat = /* @__PURE__ */ $constructor("$ZodBigInt", (inst, def) => {
+var $ZodBigIntFormat = /* @__PURE__ */ $constructor("$ZodBigIntFormat", (inst, def) => {
   $ZodCheckBigIntFormat.init(inst, def);
   $ZodBigInt.init(inst, def);
 });
@@ -2853,7 +2872,7 @@ function handleCatchall(proms, input, payload, ctx, def, inst) {
   const keySet = def.keySet;
   const _catchall = def.catchall._zod;
   const t = _catchall.def.type;
-  for (const key of Object.keys(input)) {
+  for (const key in input) {
     if (keySet.has(key))
       continue;
     if (t === "never") {
@@ -3228,7 +3247,6 @@ function handleIntersectionResults(result, left, right) {
 var $ZodTuple = /* @__PURE__ */ $constructor("$ZodTuple", (inst, def) => {
   $ZodType.init(inst, def);
   const items = def.items;
-  const optStart = items.length - [...items].reverse().findIndex((item) => item._zod.optin !== "optional");
   inst._zod.parse = (payload, ctx) => {
     const input = payload.value;
     if (!Array.isArray(input)) {
@@ -3242,6 +3260,8 @@ var $ZodTuple = /* @__PURE__ */ $constructor("$ZodTuple", (inst, def) => {
     }
     payload.value = [];
     const proms = [];
+    const reversedIndex = [...items].reverse().findIndex((item) => item._zod.optin !== "optional");
+    const optStart = reversedIndex === -1 ? 0 : items.length - reversedIndex;
     if (!def.rest) {
       const tooBig = input.length > items.length;
       const tooSmall = input.length < optStart - 1;
@@ -3312,11 +3332,13 @@ var $ZodRecord = /* @__PURE__ */ $constructor("$ZodRecord", (inst, def) => {
       return payload;
     }
     const proms = [];
-    if (def.keyType._zod.values) {
-      const values = def.keyType._zod.values;
+    const values = def.keyType._zod.values;
+    if (values) {
       payload.value = {};
+      const recordKeys = new Set;
       for (const key of values) {
         if (typeof key === "string" || typeof key === "number" || typeof key === "symbol") {
+          recordKeys.add(typeof key === "number" ? key.toString() : key);
           const result = def.valueType._zod.run({ value: input[key], issues: [] }, ctx);
           if (result instanceof Promise) {
             proms.push(result.then((result2) => {
@@ -3335,7 +3357,7 @@ var $ZodRecord = /* @__PURE__ */ $constructor("$ZodRecord", (inst, def) => {
       }
       let unrecognized;
       for (const key in input) {
-        if (!values.has(key)) {
+        if (!recordKeys.has(key)) {
           unrecognized = unrecognized ?? [];
           unrecognized.push(key);
         }
@@ -3510,11 +3532,12 @@ var $ZodLiteral = /* @__PURE__ */ $constructor("$ZodLiteral", (inst, def) => {
   if (def.values.length === 0) {
     throw new Error("Cannot create literal schema with no valid values");
   }
-  inst._zod.values = new Set(def.values);
+  const values = new Set(def.values);
+  inst._zod.values = values;
   inst._zod.pattern = new RegExp(`^(${def.values.map((o) => typeof o === "string" ? escapeRegex(o) : o ? escapeRegex(o.toString()) : String(o)).join("|")})$`);
   inst._zod.parse = (payload, _ctx) => {
     const input = payload.value;
-    if (inst._zod.values.has(input)) {
+    if (values.has(input)) {
       return payload;
     }
     payload.issues.push({
@@ -3827,8 +3850,8 @@ var $ZodReadonly = /* @__PURE__ */ $constructor("$ZodReadonly", (inst, def) => {
   $ZodType.init(inst, def);
   defineLazy(inst._zod, "propValues", () => def.innerType._zod.propValues);
   defineLazy(inst._zod, "values", () => def.innerType._zod.values);
-  defineLazy(inst._zod, "optin", () => def.innerType._zod.optin);
-  defineLazy(inst._zod, "optout", () => def.innerType._zod.optout);
+  defineLazy(inst._zod, "optin", () => def.innerType?._zod?.optin);
+  defineLazy(inst._zod, "optout", () => def.innerType?._zod?.optout);
   inst._zod.parse = (payload, ctx) => {
     if (ctx.direction === "backward") {
       return def.innerType._zod.run(payload, ctx);
@@ -3975,10 +3998,10 @@ var $ZodPromise = /* @__PURE__ */ $constructor("$ZodPromise", (inst, def) => {
 var $ZodLazy = /* @__PURE__ */ $constructor("$ZodLazy", (inst, def) => {
   $ZodType.init(inst, def);
   defineLazy(inst._zod, "innerType", () => def.getter());
-  defineLazy(inst._zod, "pattern", () => inst._zod.innerType._zod.pattern);
-  defineLazy(inst._zod, "propValues", () => inst._zod.innerType._zod.propValues);
-  defineLazy(inst._zod, "optin", () => inst._zod.innerType._zod.optin ?? undefined);
-  defineLazy(inst._zod, "optout", () => inst._zod.innerType._zod.optout ?? undefined);
+  defineLazy(inst._zod, "pattern", () => inst._zod.innerType?._zod?.pattern);
+  defineLazy(inst._zod, "propValues", () => inst._zod.innerType?._zod?.propValues);
+  defineLazy(inst._zod, "optin", () => inst._zod.innerType?._zod?.optin ?? undefined);
+  defineLazy(inst._zod, "optout", () => inst._zod.innerType?._zod?.optout ?? undefined);
   inst._zod.parse = (payload, ctx) => {
     const inner = inst._zod.innerType;
     return inner._zod.run(payload, ctx);
@@ -4060,6 +4083,7 @@ __export(exports_locales, {
   da: () => da_default,
   cs: () => cs_default,
   ca: () => ca_default,
+  bg: () => bg_default,
   be: () => be_default,
   az: () => az_default,
   ar: () => ar_default
@@ -4460,8 +4484,136 @@ function be_default() {
     localeError: error3()
   };
 }
-// node_modules/zod/v4/locales/ca.js
+// node_modules/zod/v4/locales/bg.js
+var parsedType = (data) => {
+  const t = typeof data;
+  switch (t) {
+    case "number": {
+      return Number.isNaN(data) ? "NaN" : "число";
+    }
+    case "object": {
+      if (Array.isArray(data)) {
+        return "масив";
+      }
+      if (data === null) {
+        return "null";
+      }
+      if (Object.getPrototypeOf(data) !== Object.prototype && data.constructor) {
+        return data.constructor.name;
+      }
+    }
+  }
+  return t;
+};
 var error4 = () => {
+  const Sizable = {
+    string: { unit: "символа", verb: "да съдържа" },
+    file: { unit: "байта", verb: "да съдържа" },
+    array: { unit: "елемента", verb: "да съдържа" },
+    set: { unit: "елемента", verb: "да съдържа" }
+  };
+  function getSizing(origin) {
+    return Sizable[origin] ?? null;
+  }
+  const Nouns = {
+    regex: "вход",
+    email: "имейл адрес",
+    url: "URL",
+    emoji: "емоджи",
+    uuid: "UUID",
+    uuidv4: "UUIDv4",
+    uuidv6: "UUIDv6",
+    nanoid: "nanoid",
+    guid: "GUID",
+    cuid: "cuid",
+    cuid2: "cuid2",
+    ulid: "ULID",
+    xid: "XID",
+    ksuid: "KSUID",
+    datetime: "ISO време",
+    date: "ISO дата",
+    time: "ISO време",
+    duration: "ISO продължителност",
+    ipv4: "IPv4 адрес",
+    ipv6: "IPv6 адрес",
+    cidrv4: "IPv4 диапазон",
+    cidrv6: "IPv6 диапазон",
+    base64: "base64-кодиран низ",
+    base64url: "base64url-кодиран низ",
+    json_string: "JSON низ",
+    e164: "E.164 номер",
+    jwt: "JWT",
+    template_literal: "вход"
+  };
+  return (issue2) => {
+    switch (issue2.code) {
+      case "invalid_type":
+        return `Невалиден вход: очакван ${issue2.expected}, получен ${parsedType(issue2.input)}`;
+      case "invalid_value":
+        if (issue2.values.length === 1)
+          return `Невалиден вход: очакван ${stringifyPrimitive(issue2.values[0])}`;
+        return `Невалидна опция: очаквано едно от ${joinValues(issue2.values, "|")}`;
+      case "too_big": {
+        const adj = issue2.inclusive ? "<=" : "<";
+        const sizing = getSizing(issue2.origin);
+        if (sizing)
+          return `Твърде голямо: очаква се ${issue2.origin ?? "стойност"} да съдържа ${adj}${issue2.maximum.toString()} ${sizing.unit ?? "елемента"}`;
+        return `Твърде голямо: очаква се ${issue2.origin ?? "стойност"} да бъде ${adj}${issue2.maximum.toString()}`;
+      }
+      case "too_small": {
+        const adj = issue2.inclusive ? ">=" : ">";
+        const sizing = getSizing(issue2.origin);
+        if (sizing) {
+          return `Твърде малко: очаква се ${issue2.origin} да съдържа ${adj}${issue2.minimum.toString()} ${sizing.unit}`;
+        }
+        return `Твърде малко: очаква се ${issue2.origin} да бъде ${adj}${issue2.minimum.toString()}`;
+      }
+      case "invalid_format": {
+        const _issue = issue2;
+        if (_issue.format === "starts_with") {
+          return `Невалиден низ: трябва да започва с "${_issue.prefix}"`;
+        }
+        if (_issue.format === "ends_with")
+          return `Невалиден низ: трябва да завършва с "${_issue.suffix}"`;
+        if (_issue.format === "includes")
+          return `Невалиден низ: трябва да включва "${_issue.includes}"`;
+        if (_issue.format === "regex")
+          return `Невалиден низ: трябва да съвпада с ${_issue.pattern}`;
+        let invalid_adj = "Невалиден";
+        if (_issue.format === "emoji")
+          invalid_adj = "Невалидно";
+        if (_issue.format === "datetime")
+          invalid_adj = "Невалидно";
+        if (_issue.format === "date")
+          invalid_adj = "Невалидна";
+        if (_issue.format === "time")
+          invalid_adj = "Невалидно";
+        if (_issue.format === "duration")
+          invalid_adj = "Невалидна";
+        return `${invalid_adj} ${Nouns[_issue.format] ?? issue2.format}`;
+      }
+      case "not_multiple_of":
+        return `Невалидно число: трябва да бъде кратно на ${issue2.divisor}`;
+      case "unrecognized_keys":
+        return `Неразпознат${issue2.keys.length > 1 ? "и" : ""} ключ${issue2.keys.length > 1 ? "ове" : ""}: ${joinValues(issue2.keys, ", ")}`;
+      case "invalid_key":
+        return `Невалиден ключ в ${issue2.origin}`;
+      case "invalid_union":
+        return "Невалиден вход";
+      case "invalid_element":
+        return `Невалидна стойност в ${issue2.origin}`;
+      default:
+        return `Невалиден вход`;
+    }
+  };
+};
+function bg_default() {
+  return {
+    localeError: error4()
+  };
+}
+// node_modules/zod/v4/locales/ca.js
+var error5 = () => {
   const Sizable = {
     string: { unit: "caràcters", verb: "contenir" },
     file: { unit: "bytes", verb: "contenir" },
@@ -4471,7 +4623,7 @@ var error4 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType = (data) => {
+  const parsedType2 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -4524,7 +4676,7 @@ var error4 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Tipus invàlid: s'esperava ${issue2.expected}, s'ha rebut ${parsedType(issue2.input)}`;
+        return `Tipus invàlid: s'esperava ${issue2.expected}, s'ha rebut ${parsedType2(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Valor invàlid: s'esperava ${stringifyPrimitive(issue2.values[0])}`;
@@ -4574,11 +4726,11 @@ var error4 = () => {
 };
 function ca_default() {
   return {
-    localeError: error4()
+    localeError: error5()
   };
 }
 // node_modules/zod/v4/locales/cs.js
-var error5 = () => {
+var error6 = () => {
   const Sizable = {
     string: { unit: "znaků", verb: "mít" },
     file: { unit: "bajtů", verb: "mít" },
@@ -4588,7 +4740,7 @@ var error5 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType = (data) => {
+  const parsedType2 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -4659,7 +4811,7 @@ var error5 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Neplatný vstup: očekáváno ${issue2.expected}, obdrženo ${parsedType(issue2.input)}`;
+        return `Neplatný vstup: očekáváno ${issue2.expected}, obdrženo ${parsedType2(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Neplatný vstup: očekáváno ${stringifyPrimitive(issue2.values[0])}`;
@@ -4709,11 +4861,11 @@ var error5 = () => {
 };
 function cs_default() {
   return {
-    localeError: error5()
+    localeError: error6()
   };
 }
 // node_modules/zod/v4/locales/da.js
-var error6 = () => {
+var error7 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "havde" },
     file: { unit: "bytes", verb: "havde" },
@@ -4735,7 +4887,7 @@ var error6 = () => {
   function getTypeName(type) {
     return TypeNames[type] ?? type;
   }
-  const parsedType = (data) => {
+  const parsedType2 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -4789,7 +4941,7 @@ var error6 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Ugyldigt input: forventede ${getTypeName(issue2.expected)}, fik ${getTypeName(parsedType(issue2.input))}`;
+        return `Ugyldigt input: forventede ${getTypeName(issue2.expected)}, fik ${getTypeName(parsedType2(issue2.input))}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Ugyldig værdi: forventede ${stringifyPrimitive(issue2.values[0])}`;
@@ -4840,11 +4992,11 @@ var error6 = () => {
 };
 function da_default() {
   return {
-    localeError: error6()
+    localeError: error7()
   };
 }
 // node_modules/zod/v4/locales/de.js
-var error7 = () => {
+var error8 = () => {
   const Sizable = {
     string: { unit: "Zeichen", verb: "zu haben" },
     file: { unit: "Bytes", verb: "zu haben" },
@@ -4854,7 +5006,7 @@ var error7 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType = (data) => {
+  const parsedType2 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -4907,7 +5059,7 @@ var error7 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Ungültige Eingabe: erwartet ${issue2.expected}, erhalten ${parsedType(issue2.input)}`;
+        return `Ungültige Eingabe: erwartet ${issue2.expected}, erhalten ${parsedType2(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Ungültige Eingabe: erwartet ${stringifyPrimitive(issue2.values[0])}`;
@@ -4956,11 +5108,11 @@ var error7 = () => {
 };
 function de_default() {
   return {
-    localeError: error7()
+    localeError: error8()
   };
 }
 // node_modules/zod/v4/locales/en.js
-var parsedType = (data) => {
+var parsedType2 = (data) => {
   const t = typeof data;
   switch (t) {
     case "number": {
@@ -4980,7 +5132,7 @@ var parsedType = (data) => {
   }
   return t;
 };
-var error8 = () => {
+var error9 = () => {
   const Sizable = {
     string: { unit: "characters", verb: "to have" },
     file: { unit: "bytes", verb: "to have" },
@@ -5011,6 +5163,7 @@ var error8 = () => {
     duration: "ISO duration",
     ipv4: "IPv4 address",
     ipv6: "IPv6 address",
+    mac: "MAC address",
     cidrv4: "IPv4 range",
     cidrv6: "IPv6 range",
     base64: "base64-encoded string",
@@ -5023,7 +5176,7 @@ var error8 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Invalid input: expected ${issue2.expected}, received ${parsedType(issue2.input)}`;
+        return `Invalid input: expected ${issue2.expected}, received ${parsedType2(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Invalid input: expected ${stringifyPrimitive(issue2.values[0])}`;
@@ -5073,11 +5226,11 @@ var error8 = () => {
 };
 function en_default() {
   return {
-    localeError: error8()
+    localeError: error9()
   };
 }
 // node_modules/zod/v4/locales/eo.js
-var parsedType2 = (data) => {
+var parsedType3 = (data) => {
   const t = typeof data;
   switch (t) {
     case "number": {
@@ -5097,7 +5250,7 @@ var parsedType2 = (data) => {
   }
   return t;
 };
-var error9 = () => {
+var error10 = () => {
   const Sizable = {
     string: { unit: "karaktrojn", verb: "havi" },
     file: { unit: "bajtojn", verb: "havi" },
@@ -5140,7 +5293,7 @@ var error9 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Nevalida enigo: atendiĝis ${issue2.expected}, riceviĝis ${parsedType2(issue2.input)}`;
+        return `Nevalida enigo: atendiĝis ${issue2.expected}, riceviĝis ${parsedType3(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Nevalida enigo: atendiĝis ${stringifyPrimitive(issue2.values[0])}`;
@@ -5189,11 +5342,11 @@ var error9 = () => {
 };
 function eo_default() {
   return {
-    localeError: error9()
+    localeError: error10()
   };
 }
 // node_modules/zod/v4/locales/es.js
-var error10 = () => {
+var error11 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "tener" },
     file: { unit: "bytes", verb: "tener" },
@@ -5232,7 +5385,7 @@ var error10 = () => {
   function getTypeName(type) {
     return TypeNames[type] ?? type;
   }
-  const parsedType3 = (data) => {
+  const parsedType4 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -5286,7 +5439,7 @@ var error10 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Entrada inválida: se esperaba ${getTypeName(issue2.expected)}, recibido ${getTypeName(parsedType3(issue2.input))}`;
+        return `Entrada inválida: se esperaba ${getTypeName(issue2.expected)}, recibido ${getTypeName(parsedType4(issue2.input))}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Entrada inválida: se esperaba ${stringifyPrimitive(issue2.values[0])}`;
@@ -5337,11 +5490,11 @@ var error10 = () => {
 };
 function es_default() {
   return {
-    localeError: error10()
+    localeError: error11()
   };
 }
 // node_modules/zod/v4/locales/fa.js
-var error11 = () => {
+var error12 = () => {
   const Sizable = {
     string: { unit: "کاراکتر", verb: "داشته باشد" },
     file: { unit: "بایت", verb: "داشته باشد" },
@@ -5351,7 +5504,7 @@ var error11 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType3 = (data) => {
+  const parsedType4 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -5404,7 +5557,7 @@ var error11 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `ورودی نامعتبر: می‌بایست ${issue2.expected} می‌بود، ${parsedType3(issue2.input)} دریافت شد`;
+        return `ورودی نامعتبر: می‌بایست ${issue2.expected} می‌بود، ${parsedType4(issue2.input)} دریافت شد`;
       case "invalid_value":
         if (issue2.values.length === 1) {
           return `ورودی نامعتبر: می‌بایست ${stringifyPrimitive(issue2.values[0])} می‌بود`;
@@ -5459,11 +5612,11 @@ var error11 = () => {
 };
 function fa_default() {
   return {
-    localeError: error11()
+    localeError: error12()
   };
 }
 // node_modules/zod/v4/locales/fi.js
-var error12 = () => {
+var error13 = () => {
   const Sizable = {
     string: { unit: "merkkiä", subject: "merkkijonon" },
     file: { unit: "tavua", subject: "tiedoston" },
@@ -5477,7 +5630,7 @@ var error12 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType3 = (data) => {
+  const parsedType4 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -5530,7 +5683,7 @@ var error12 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Virheellinen tyyppi: odotettiin ${issue2.expected}, oli ${parsedType3(issue2.input)}`;
+        return `Virheellinen tyyppi: odotettiin ${issue2.expected}, oli ${parsedType4(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Virheellinen syöte: täytyy olla ${stringifyPrimitive(issue2.values[0])}`;
@@ -5581,11 +5734,11 @@ var error12 = () => {
 };
 function fi_default() {
   return {
-    localeError: error12()
+    localeError: error13()
   };
 }
 // node_modules/zod/v4/locales/fr.js
-var error13 = () => {
+var error14 = () => {
   const Sizable = {
     string: { unit: "caractères", verb: "avoir" },
     file: { unit: "octets", verb: "avoir" },
@@ -5595,7 +5748,7 @@ var error13 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType3 = (data) => {
+  const parsedType4 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -5648,7 +5801,7 @@ var error13 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Entrée invalide : ${issue2.expected} attendu, ${parsedType3(issue2.input)} reçu`;
+        return `Entrée invalide : ${issue2.expected} attendu, ${parsedType4(issue2.input)} reçu`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Entrée invalide : ${stringifyPrimitive(issue2.values[0])} attendu`;
@@ -5697,11 +5850,11 @@ var error13 = () => {
 };
 function fr_default() {
   return {
-    localeError: error13()
+    localeError: error14()
   };
 }
 // node_modules/zod/v4/locales/fr-CA.js
-var error14 = () => {
+var error15 = () => {
   const Sizable = {
     string: { unit: "caractères", verb: "avoir" },
     file: { unit: "octets", verb: "avoir" },
@@ -5711,7 +5864,7 @@ var error14 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType3 = (data) => {
+  const parsedType4 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -5764,7 +5917,7 @@ var error14 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Entrée invalide : attendu ${issue2.expected}, reçu ${parsedType3(issue2.input)}`;
+        return `Entrée invalide : attendu ${issue2.expected}, reçu ${parsedType4(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Entrée invalide : attendu ${stringifyPrimitive(issue2.values[0])}`;
@@ -5814,115 +5967,205 @@ var error14 = () => {
 };
 function fr_CA_default() {
   return {
-    localeError: error14()
+    localeError: error15()
   };
 }
 // node_modules/zod/v4/locales/he.js
-var error15 = () => {
-  const Sizable = {
-    string: { unit: "אותיות", verb: "לכלול" },
-    file: { unit: "בייטים", verb: "לכלול" },
-    array: { unit: "פריטים", verb: "לכלול" },
-    set: { unit: "פריטים", verb: "לכלול" }
+var error16 = () => {
+  const TypeNames = {
+    string: { label: "מחרוזת", gender: "f" },
+    number: { label: "מספר", gender: "m" },
+    boolean: { label: "ערך בוליאני", gender: "m" },
+    bigint: { label: "BigInt", gender: "m" },
+    date: { label: "תאריך", gender: "m" },
+    array: { label: "מערך", gender: "m" },
+    object: { label: "אובייקט", gender: "m" },
+    null: { label: "ערך ריק (null)", gender: "m" },
+    undefined: { label: "ערך לא מוגדר (undefined)", gender: "m" },
+    symbol: { label: "סימבול (Symbol)", gender: "m" },
+    function: { label: "פונקציה", gender: "f" },
+    map: { label: "מפה (Map)", gender: "f" },
+    set: { label: "קבוצה (Set)", gender: "f" },
+    file: { label: "קובץ", gender: "m" },
+    promise: { label: "Promise", gender: "m" },
+    NaN: { label: "NaN", gender: "m" },
+    unknown: { label: "ערך לא ידוע", gender: "m" },
+    value: { label: "ערך", gender: "m" }
   };
-  function getSizing(origin) {
+  const Sizable = {
+    string: { unit: "תווים", shortLabel: "קצר", longLabel: "ארוך" },
+    file: { unit: "בייטים", shortLabel: "קטן", longLabel: "גדול" },
+    array: { unit: "פריטים", shortLabel: "קטן", longLabel: "גדול" },
+    set: { unit: "פריטים", shortLabel: "קטן", longLabel: "גדול" },
+    number: { unit: "", shortLabel: "קטן", longLabel: "גדול" }
+  };
+  const typeEntry = (t) => t ? TypeNames[t] : undefined;
+  const typeLabel = (t) => {
+    const e = typeEntry(t);
+    if (e)
+      return e.label;
+    return t ?? TypeNames.unknown.label;
+  };
+  const withDefinite = (t) => `ה${typeLabel(t)}`;
+  const verbFor = (t) => {
+    const e = typeEntry(t);
+    const gender = e?.gender ?? "m";
+    return gender === "f" ? "צריכה להיות" : "צריך להיות";
+  };
+  const getSizing = (origin) => {
+    if (!origin)
+      return null;
     return Sizable[origin] ?? null;
-  }
-  const parsedType3 = (data) => {
+  };
+  const parsedType4 = (data) => {
     const t = typeof data;
     switch (t) {
-      case "number": {
+      case "number":
         return Number.isNaN(data) ? "NaN" : "number";
-      }
       case "object": {
-        if (Array.isArray(data)) {
+        if (Array.isArray(data))
           return "array";
-        }
-        if (data === null) {
+        if (data === null)
           return "null";
-        }
         if (Object.getPrototypeOf(data) !== Object.prototype && data.constructor) {
           return data.constructor.name;
         }
+        return "object";
       }
+      default:
+        return t;
     }
-    return t;
   };
   const Nouns = {
-    regex: "קלט",
-    email: "כתובת אימייל",
-    url: "כתובת רשת",
-    emoji: "אימוג'י",
-    uuid: "UUID",
-    uuidv4: "UUIDv4",
-    uuidv6: "UUIDv6",
-    nanoid: "nanoid",
-    guid: "GUID",
-    cuid: "cuid",
-    cuid2: "cuid2",
-    ulid: "ULID",
-    xid: "XID",
-    ksuid: "KSUID",
-    datetime: "תאריך וזמן ISO",
-    date: "תאריך ISO",
-    time: "זמן ISO",
-    duration: "משך זמן ISO",
-    ipv4: "כתובת IPv4",
-    ipv6: "כתובת IPv6",
-    cidrv4: "טווח IPv4",
-    cidrv6: "טווח IPv6",
-    base64: "מחרוזת בבסיס 64",
-    base64url: "מחרוזת בבסיס 64 לכתובות רשת",
-    json_string: "מחרוזת JSON",
-    e164: "מספר E.164",
-    jwt: "JWT",
-    template_literal: "קלט"
+    regex: { label: "קלט", gender: "m" },
+    email: { label: "כתובת אימייל", gender: "f" },
+    url: { label: "כתובת רשת", gender: "f" },
+    emoji: { label: "אימוג'י", gender: "m" },
+    uuid: { label: "UUID", gender: "m" },
+    nanoid: { label: "nanoid", gender: "m" },
+    guid: { label: "GUID", gender: "m" },
+    cuid: { label: "cuid", gender: "m" },
+    cuid2: { label: "cuid2", gender: "m" },
+    ulid: { label: "ULID", gender: "m" },
+    xid: { label: "XID", gender: "m" },
+    ksuid: { label: "KSUID", gender: "m" },
+    datetime: { label: "תאריך וזמן ISO", gender: "m" },
+    date: { label: "תאריך ISO", gender: "m" },
+    time: { label: "זמן ISO", gender: "m" },
+    duration: { label: "משך זמן ISO", gender: "m" },
+    ipv4: { label: "כתובת IPv4", gender: "f" },
+    ipv6: { label: "כתובת IPv6", gender: "f" },
+    cidrv4: { label: "טווח IPv4", gender: "m" },
+    cidrv6: { label: "טווח IPv6", gender: "m" },
+    base64: { label: "מחרוזת בבסיס 64", gender: "f" },
+    base64url: { label: "מחרוזת בבסיס 64 לכתובות רשת", gender: "f" },
+    json_string: { label: "מחרוזת JSON", gender: "f" },
+    e164: { label: "מספר E.164", gender: "m" },
+    jwt: { label: "JWT", gender: "m" },
+    ends_with: { label: "קלט", gender: "m" },
+    includes: { label: "קלט", gender: "m" },
+    lowercase: { label: "קלט", gender: "m" },
+    starts_with: { label: "קלט", gender: "m" },
+    uppercase: { label: "קלט", gender: "m" }
   };
   return (issue2) => {
     switch (issue2.code) {
-      case "invalid_type":
-        return `קלט לא תקין: צריך ${issue2.expected}, התקבל ${parsedType3(issue2.input)}`;
-      case "invalid_value":
-        if (issue2.values.length === 1)
-          return `קלט לא תקין: צריך ${stringifyPrimitive(issue2.values[0])}`;
-        return `קלט לא תקין: צריך אחת מהאפשרויות  ${joinValues(issue2.values, "|")}`;
+      case "invalid_type": {
+        const expectedKey = issue2.expected;
+        const expected = typeLabel(expectedKey);
+        const receivedKey = parsedType4(issue2.input);
+        const received = TypeNames[receivedKey]?.label ?? receivedKey;
+        return `קלט לא תקין: צריך להיות ${expected}, התקבל ${received}`;
+      }
+      case "invalid_value": {
+        if (issue2.values.length === 1) {
+          return `ערך לא תקין: הערך חייב להיות ${stringifyPrimitive(issue2.values[0])}`;
+        }
+        const stringified = issue2.values.map((v) => stringifyPrimitive(v));
+        if (issue2.values.length === 2) {
+          return `ערך לא תקין: האפשרויות המתאימות הן ${stringified[0]} או ${stringified[1]}`;
+        }
+        const lastValue = stringified[stringified.length - 1];
+        const restValues = stringified.slice(0, -1).join(", ");
+        return `ערך לא תקין: האפשרויות המתאימות הן ${restValues} או ${lastValue}`;
+      }
       case "too_big": {
-        const adj = issue2.inclusive ? "<=" : "<";
         const sizing = getSizing(issue2.origin);
-        if (sizing)
-          return `גדול מדי: ${issue2.origin ?? "value"} צריך להיות ${adj}${issue2.maximum.toString()} ${sizing.unit ?? "elements"}`;
-        return `גדול מדי: ${issue2.origin ?? "value"} צריך להיות ${adj}${issue2.maximum.toString()}`;
+        const subject = withDefinite(issue2.origin ?? "value");
+        if (issue2.origin === "string") {
+          return `${sizing?.longLabel ?? "ארוך"} מדי: ${subject} צריכה להכיל ${issue2.maximum.toString()} ${sizing?.unit ?? ""} ${issue2.inclusive ? "או פחות" : "לכל היותר"}`.trim();
+        }
+        if (issue2.origin === "number") {
+          const comparison = issue2.inclusive ? `קטן או שווה ל-${issue2.maximum}` : `קטן מ-${issue2.maximum}`;
+          return `גדול מדי: ${subject} צריך להיות ${comparison}`;
+        }
+        if (issue2.origin === "array" || issue2.origin === "set") {
+          const verb = issue2.origin === "set" ? "צריכה" : "צריך";
+          const comparison = issue2.inclusive ? `${issue2.maximum} ${sizing?.unit ?? ""} או פחות` : `פחות מ-${issue2.maximum} ${sizing?.unit ?? ""}`;
+          return `גדול מדי: ${subject} ${verb} להכיל ${comparison}`.trim();
+        }
+        const adj = issue2.inclusive ? "<=" : "<";
+        const be = verbFor(issue2.origin ?? "value");
+        if (sizing?.unit) {
+          return `${sizing.longLabel} מדי: ${subject} ${be} ${adj}${issue2.maximum.toString()} ${sizing.unit}`;
+        }
+        return `${sizing?.longLabel ?? "גדול"} מדי: ${subject} ${be} ${adj}${issue2.maximum.toString()}`;
       }
       case "too_small": {
-        const adj = issue2.inclusive ? ">=" : ">";
         const sizing = getSizing(issue2.origin);
-        if (sizing) {
-          return `קטן מדי: ${issue2.origin} צריך להיות ${adj}${issue2.minimum.toString()} ${sizing.unit}`;
+        const subject = withDefinite(issue2.origin ?? "value");
+        if (issue2.origin === "string") {
+          return `${sizing?.shortLabel ?? "קצר"} מדי: ${subject} צריכה להכיל ${issue2.minimum.toString()} ${sizing?.unit ?? ""} ${issue2.inclusive ? "או יותר" : "לפחות"}`.trim();
         }
-        return `קטן מדי: ${issue2.origin} צריך להיות ${adj}${issue2.minimum.toString()}`;
+        if (issue2.origin === "number") {
+          const comparison = issue2.inclusive ? `גדול או שווה ל-${issue2.minimum}` : `גדול מ-${issue2.minimum}`;
+          return `קטן מדי: ${subject} צריך להיות ${comparison}`;
+        }
+        if (issue2.origin === "array" || issue2.origin === "set") {
+          const verb = issue2.origin === "set" ? "צריכה" : "צריך";
+          if (issue2.minimum === 1 && issue2.inclusive) {
+            const singularPhrase = issue2.origin === "set" ? "לפחות פריט אחד" : "לפחות פריט אחד";
+            return `קטן מדי: ${subject} ${verb} להכיל ${singularPhrase}`;
+          }
+          const comparison = issue2.inclusive ? `${issue2.minimum} ${sizing?.unit ?? ""} או יותר` : `יותר מ-${issue2.minimum} ${sizing?.unit ?? ""}`;
+          return `קטן מדי: ${subject} ${verb} להכיל ${comparison}`.trim();
+        }
+        const adj = issue2.inclusive ? ">=" : ">";
+        const be = verbFor(issue2.origin ?? "value");
+        if (sizing?.unit) {
+          return `${sizing.shortLabel} מדי: ${subject} ${be} ${adj}${issue2.minimum.toString()} ${sizing.unit}`;
+        }
+        return `${sizing?.shortLabel ?? "קטן"} מדי: ${subject} ${be} ${adj}${issue2.minimum.toString()}`;
       }
       case "invalid_format": {
         const _issue = issue2;
         if (_issue.format === "starts_with")
-          return `מחרוזת לא תקינה: חייבת להתחיל ב"${_issue.prefix}"`;
+          return `המחרוזת חייבת להתחיל ב "${_issue.prefix}"`;
         if (_issue.format === "ends_with")
-          return `מחרוזת לא תקינה: חייבת להסתיים ב "${_issue.suffix}"`;
+          return `המחרוזת חייבת להסתיים ב "${_issue.suffix}"`;
         if (_issue.format === "includes")
-          return `מחרוזת לא תקינה: חייבת לכלול "${_issue.includes}"`;
+          return `המחרוזת חייבת לכלול "${_issue.includes}"`;
         if (_issue.format === "regex")
-          return `מחרוזת לא תקינה: חייבת להתאים לתבנית ${_issue.pattern}`;
-        return `${Nouns[_issue.format] ?? issue2.format} לא תקין`;
+          return `המחרוזת חייבת להתאים לתבנית ${_issue.pattern}`;
+        const nounEntry = Nouns[_issue.format];
+        const noun = nounEntry?.label ?? _issue.format;
+        const gender = nounEntry?.gender ?? "m";
+        const adjective = gender === "f" ? "תקינה" : "תקין";
+        return `${noun} לא ${adjective}`;
       }
       case "not_multiple_of":
         return `מספר לא תקין: חייב להיות מכפלה של ${issue2.divisor}`;
       case "unrecognized_keys":
         return `מפתח${issue2.keys.length > 1 ? "ות" : ""} לא מזוה${issue2.keys.length > 1 ? "ים" : "ה"}: ${joinValues(issue2.keys, ", ")}`;
-      case "invalid_key":
-        return `מפתח לא תקין ב${issue2.origin}`;
+      case "invalid_key": {
+        return `שדה לא תקין באובייקט`;
+      }
       case "invalid_union":
         return "קלט לא תקין";
-      case "invalid_element":
-        return `ערך לא תקין ב${issue2.origin}`;
+      case "invalid_element": {
+        const place = withDefinite(issue2.origin ?? "array");
+        return `ערך לא תקין ב${place}`;
+      }
       default:
         return `קלט לא תקין`;
     }
@@ -5930,11 +6173,11 @@ var error15 = () => {
 };
 function he_default() {
   return {
-    localeError: error15()
+    localeError: error16()
   };
 }
 // node_modules/zod/v4/locales/hu.js
-var error16 = () => {
+var error17 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "legyen" },
     file: { unit: "byte", verb: "legyen" },
@@ -5944,7 +6187,7 @@ var error16 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType3 = (data) => {
+  const parsedType4 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -5997,7 +6240,7 @@ var error16 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Érvénytelen bemenet: a várt érték ${issue2.expected}, a kapott érték ${parsedType3(issue2.input)}`;
+        return `Érvénytelen bemenet: a várt érték ${issue2.expected}, a kapott érték ${parsedType4(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Érvénytelen bemenet: a várt érték ${stringifyPrimitive(issue2.values[0])}`;
@@ -6046,11 +6289,11 @@ var error16 = () => {
 };
 function hu_default() {
   return {
-    localeError: error16()
+    localeError: error17()
   };
 }
 // node_modules/zod/v4/locales/id.js
-var error17 = () => {
+var error18 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "memiliki" },
     file: { unit: "byte", verb: "memiliki" },
@@ -6060,7 +6303,7 @@ var error17 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType3 = (data) => {
+  const parsedType4 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -6113,7 +6356,7 @@ var error17 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Input tidak valid: diharapkan ${issue2.expected}, diterima ${parsedType3(issue2.input)}`;
+        return `Input tidak valid: diharapkan ${issue2.expected}, diterima ${parsedType4(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Input tidak valid: diharapkan ${stringifyPrimitive(issue2.values[0])}`;
@@ -6162,11 +6405,11 @@ var error17 = () => {
 };
 function id_default() {
   return {
-    localeError: error17()
+    localeError: error18()
   };
 }
 // node_modules/zod/v4/locales/is.js
-var parsedType3 = (data) => {
+var parsedType4 = (data) => {
   const t = typeof data;
   switch (t) {
     case "number": {
@@ -6186,7 +6429,7 @@ var parsedType3 = (data) => {
   }
   return t;
 };
-var error18 = () => {
+var error19 = () => {
   const Sizable = {
     string: { unit: "stafi", verb: "að hafa" },
     file: { unit: "bæti", verb: "að hafa" },
@@ -6229,7 +6472,7 @@ var error18 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Rangt gildi: Þú slóst inn ${parsedType3(issue2.input)} þar sem á að vera ${issue2.expected}`;
+        return `Rangt gildi: Þú slóst inn ${parsedType4(issue2.input)} þar sem á að vera ${issue2.expected}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Rangt gildi: gert ráð fyrir ${stringifyPrimitive(issue2.values[0])}`;
@@ -6279,11 +6522,11 @@ var error18 = () => {
 };
 function is_default() {
   return {
-    localeError: error18()
+    localeError: error19()
   };
 }
 // node_modules/zod/v4/locales/it.js
-var error19 = () => {
+var error20 = () => {
   const Sizable = {
     string: { unit: "caratteri", verb: "avere" },
     file: { unit: "byte", verb: "avere" },
@@ -6293,7 +6536,7 @@ var error19 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType4 = (data) => {
+  const parsedType5 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -6346,7 +6589,7 @@ var error19 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Input non valido: atteso ${issue2.expected}, ricevuto ${parsedType4(issue2.input)}`;
+        return `Input non valido: atteso ${issue2.expected}, ricevuto ${parsedType5(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Input non valido: atteso ${stringifyPrimitive(issue2.values[0])}`;
@@ -6395,11 +6638,11 @@ var error19 = () => {
 };
 function it_default() {
   return {
-    localeError: error19()
+    localeError: error20()
   };
 }
 // node_modules/zod/v4/locales/ja.js
-var error20 = () => {
+var error21 = () => {
   const Sizable = {
     string: { unit: "文字", verb: "である" },
     file: { unit: "バイト", verb: "である" },
@@ -6409,7 +6652,7 @@ var error20 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType4 = (data) => {
+  const parsedType5 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -6462,7 +6705,7 @@ var error20 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `無効な入力: ${issue2.expected}が期待されましたが、${parsedType4(issue2.input)}が入力されました`;
+        return `無効な入力: ${issue2.expected}が期待されましたが、${parsedType5(issue2.input)}が入力されました`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `無効な入力: ${stringifyPrimitive(issue2.values[0])}が期待されました`;
@@ -6510,11 +6753,11 @@ var error20 = () => {
 };
 function ja_default() {
   return {
-    localeError: error20()
+    localeError: error21()
   };
 }
 // node_modules/zod/v4/locales/ka.js
-var parsedType4 = (data) => {
+var parsedType5 = (data) => {
   const t = typeof data;
   switch (t) {
     case "number": {
@@ -6542,7 +6785,7 @@ var parsedType4 = (data) => {
   };
   return typeMap[t] ?? t;
 };
-var error21 = () => {
+var error22 = () => {
   const Sizable = {
     string: { unit: "სიმბოლო", verb: "უნდა შეიცავდეს" },
     file: { unit: "ბაიტი", verb: "უნდა შეიცავდეს" },
@@ -6585,7 +6828,7 @@ var error21 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `არასწორი შეყვანა: მოსალოდნელი ${issue2.expected}, მიღებული ${parsedType4(issue2.input)}`;
+        return `არასწორი შეყვანა: მოსალოდნელი ${issue2.expected}, მიღებული ${parsedType5(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `არასწორი შეყვანა: მოსალოდნელი ${stringifyPrimitive(issue2.values[0])}`;
@@ -6635,11 +6878,11 @@ var error21 = () => {
 };
 function ka_default() {
   return {
-    localeError: error21()
+    localeError: error22()
   };
 }
 // node_modules/zod/v4/locales/km.js
-var error22 = () => {
+var error23 = () => {
   const Sizable = {
     string: { unit: "តួអក្សរ", verb: "គួរមាន" },
     file: { unit: "បៃ", verb: "គួរមាន" },
@@ -6649,7 +6892,7 @@ var error22 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType5 = (data) => {
+  const parsedType6 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -6702,7 +6945,7 @@ var error22 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `ទិន្នន័យបញ្ចូលមិនត្រឹមត្រូវ៖ ត្រូវការ ${issue2.expected} ប៉ុន្តែទទួលបាន ${parsedType5(issue2.input)}`;
+        return `ទិន្នន័យបញ្ចូលមិនត្រឹមត្រូវ៖ ត្រូវការ ${issue2.expected} ប៉ុន្តែទទួលបាន ${parsedType6(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `ទិន្នន័យបញ្ចូលមិនត្រឹមត្រូវ៖ ត្រូវការ ${stringifyPrimitive(issue2.values[0])}`;
@@ -6752,7 +6995,7 @@ var error22 = () => {
 };
 function km_default() {
   return {
-    localeError: error22()
+    localeError: error23()
   };
 }
 
@@ -6761,7 +7004,7 @@ function kh_default() {
   return km_default();
 }
 // node_modules/zod/v4/locales/ko.js
-var error23 = () => {
+var error24 = () => {
   const Sizable = {
     string: { unit: "문자", verb: "to have" },
     file: { unit: "바이트", verb: "to have" },
@@ -6771,7 +7014,7 @@ var error23 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType5 = (data) => {
+  const parsedType6 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -6824,7 +7067,7 @@ var error23 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `잘못된 입력: 예상 타입은 ${issue2.expected}, 받은 타입은 ${parsedType5(issue2.input)}입니다`;
+        return `잘못된 입력: 예상 타입은 ${issue2.expected}, 받은 타입은 ${parsedType6(issue2.input)}입니다`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `잘못된 입력: 값은 ${stringifyPrimitive(issue2.values[0])} 이어야 합니다`;
@@ -6878,11 +7121,11 @@ var error23 = () => {
 };
 function ko_default() {
   return {
-    localeError: error23()
+    localeError: error24()
   };
 }
 // node_modules/zod/v4/locales/lt.js
-var parsedType5 = (data) => {
+var parsedType6 = (data) => {
   const t = typeof data;
   return parsedTypeFromType(t, data);
 };
@@ -6941,7 +7184,7 @@ function getUnitTypeFromNumber(number2) {
     return "one";
   return "few";
 }
-var error24 = () => {
+var error25 = () => {
   const Sizable = {
     string: {
       unit: {
@@ -7054,7 +7297,7 @@ var error24 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Gautas tipas ${parsedType5(issue2.input)}, o tikėtasi - ${parsedTypeFromType(issue2.expected)}`;
+        return `Gautas tipas ${parsedType6(issue2.input)}, o tikėtasi - ${parsedTypeFromType(issue2.expected)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Privalo būti ${stringifyPrimitive(issue2.values[0])}`;
@@ -7107,11 +7350,11 @@ var error24 = () => {
 };
 function lt_default() {
   return {
-    localeError: error24()
+    localeError: error25()
   };
 }
 // node_modules/zod/v4/locales/mk.js
-var error25 = () => {
+var error26 = () => {
   const Sizable = {
     string: { unit: "знаци", verb: "да имаат" },
     file: { unit: "бајти", verb: "да имаат" },
@@ -7121,7 +7364,7 @@ var error25 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -7174,7 +7417,7 @@ var error25 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Грешен внес: се очекува ${issue2.expected}, примено ${parsedType6(issue2.input)}`;
+        return `Грешен внес: се очекува ${issue2.expected}, примено ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Invalid input: expected ${stringifyPrimitive(issue2.values[0])}`;
@@ -7224,11 +7467,11 @@ var error25 = () => {
 };
 function mk_default() {
   return {
-    localeError: error25()
+    localeError: error26()
   };
 }
 // node_modules/zod/v4/locales/ms.js
-var error26 = () => {
+var error27 = () => {
   const Sizable = {
     string: { unit: "aksara", verb: "mempunyai" },
     file: { unit: "bait", verb: "mempunyai" },
@@ -7238,7 +7481,7 @@ var error26 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -7291,7 +7534,7 @@ var error26 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Input tidak sah: dijangka ${issue2.expected}, diterima ${parsedType6(issue2.input)}`;
+        return `Input tidak sah: dijangka ${issue2.expected}, diterima ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Input tidak sah: dijangka ${stringifyPrimitive(issue2.values[0])}`;
@@ -7340,21 +7583,21 @@ var error26 = () => {
 };
 function ms_default() {
   return {
-    localeError: error26()
+    localeError: error27()
   };
 }
 // node_modules/zod/v4/locales/nl.js
-var error27 = () => {
+var error28 = () => {
   const Sizable = {
-    string: { unit: "tekens" },
-    file: { unit: "bytes" },
-    array: { unit: "elementen" },
-    set: { unit: "elementen" }
+    string: { unit: "tekens", verb: "te hebben" },
+    file: { unit: "bytes", verb: "te hebben" },
+    array: { unit: "elementen", verb: "te hebben" },
+    set: { unit: "elementen", verb: "te hebben" }
   };
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -7407,7 +7650,7 @@ var error27 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Ongeldige invoer: verwacht ${issue2.expected}, ontving ${parsedType6(issue2.input)}`;
+        return `Ongeldige invoer: verwacht ${issue2.expected}, ontving ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Ongeldige invoer: verwacht ${stringifyPrimitive(issue2.values[0])}`;
@@ -7416,16 +7659,16 @@ var error27 = () => {
         const adj = issue2.inclusive ? "<=" : "<";
         const sizing = getSizing(issue2.origin);
         if (sizing)
-          return `Te lang: verwacht dat ${issue2.origin ?? "waarde"} ${adj}${issue2.maximum.toString()} ${sizing.unit ?? "elementen"} bevat`;
-        return `Te lang: verwacht dat ${issue2.origin ?? "waarde"} ${adj}${issue2.maximum.toString()} is`;
+          return `Te groot: verwacht dat ${issue2.origin ?? "waarde"} ${sizing.verb} ${adj}${issue2.maximum.toString()} ${sizing.unit ?? "elementen"}`;
+        return `Te groot: verwacht dat ${issue2.origin ?? "waarde"} ${adj}${issue2.maximum.toString()} is`;
       }
       case "too_small": {
         const adj = issue2.inclusive ? ">=" : ">";
         const sizing = getSizing(issue2.origin);
         if (sizing) {
-          return `Te kort: verwacht dat ${issue2.origin} ${adj}${issue2.minimum.toString()} ${sizing.unit} bevat`;
+          return `Te klein: verwacht dat ${issue2.origin} ${sizing.verb} ${adj}${issue2.minimum.toString()} ${sizing.unit}`;
         }
-        return `Te kort: verwacht dat ${issue2.origin} ${adj}${issue2.minimum.toString()} is`;
+        return `Te klein: verwacht dat ${issue2.origin} ${adj}${issue2.minimum.toString()} is`;
       }
       case "invalid_format": {
         const _issue = issue2;
@@ -7457,11 +7700,11 @@ var error27 = () => {
 };
 function nl_default() {
   return {
-    localeError: error27()
+    localeError: error28()
   };
 }
 // node_modules/zod/v4/locales/no.js
-var error28 = () => {
+var error29 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "å ha" },
     file: { unit: "bytes", verb: "å ha" },
@@ -7471,7 +7714,7 @@ var error28 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -7524,7 +7767,7 @@ var error28 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Ugyldig input: forventet ${issue2.expected}, fikk ${parsedType6(issue2.input)}`;
+        return `Ugyldig input: forventet ${issue2.expected}, fikk ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Ugyldig verdi: forventet ${stringifyPrimitive(issue2.values[0])}`;
@@ -7573,11 +7816,11 @@ var error28 = () => {
 };
 function no_default() {
   return {
-    localeError: error28()
+    localeError: error29()
   };
 }
 // node_modules/zod/v4/locales/ota.js
-var error29 = () => {
+var error30 = () => {
   const Sizable = {
     string: { unit: "harf", verb: "olmalıdır" },
     file: { unit: "bayt", verb: "olmalıdır" },
@@ -7587,7 +7830,7 @@ var error29 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -7640,7 +7883,7 @@ var error29 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Fâsit giren: umulan ${issue2.expected}, alınan ${parsedType6(issue2.input)}`;
+        return `Fâsit giren: umulan ${issue2.expected}, alınan ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Fâsit giren: umulan ${stringifyPrimitive(issue2.values[0])}`;
@@ -7689,11 +7932,11 @@ var error29 = () => {
 };
 function ota_default() {
   return {
-    localeError: error29()
+    localeError: error30()
   };
 }
 // node_modules/zod/v4/locales/ps.js
-var error30 = () => {
+var error31 = () => {
   const Sizable = {
     string: { unit: "توکي", verb: "ولري" },
     file: { unit: "بایټس", verb: "ولري" },
@@ -7703,7 +7946,7 @@ var error30 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -7756,7 +7999,7 @@ var error30 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `ناسم ورودي: باید ${issue2.expected} وای, مګر ${parsedType6(issue2.input)} ترلاسه شو`;
+        return `ناسم ورودي: باید ${issue2.expected} وای, مګر ${parsedType7(issue2.input)} ترلاسه شو`;
       case "invalid_value":
         if (issue2.values.length === 1) {
           return `ناسم ورودي: باید ${stringifyPrimitive(issue2.values[0])} وای`;
@@ -7811,11 +8054,11 @@ var error30 = () => {
 };
 function ps_default() {
   return {
-    localeError: error30()
+    localeError: error31()
   };
 }
 // node_modules/zod/v4/locales/pl.js
-var error31 = () => {
+var error32 = () => {
   const Sizable = {
     string: { unit: "znaków", verb: "mieć" },
     file: { unit: "bajtów", verb: "mieć" },
@@ -7825,7 +8068,7 @@ var error31 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -7878,7 +8121,7 @@ var error31 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Nieprawidłowe dane wejściowe: oczekiwano ${issue2.expected}, otrzymano ${parsedType6(issue2.input)}`;
+        return `Nieprawidłowe dane wejściowe: oczekiwano ${issue2.expected}, otrzymano ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Nieprawidłowe dane wejściowe: oczekiwano ${stringifyPrimitive(issue2.values[0])}`;
@@ -7928,11 +8171,11 @@ var error31 = () => {
 };
 function pl_default() {
   return {
-    localeError: error31()
+    localeError: error32()
   };
 }
 // node_modules/zod/v4/locales/pt.js
-var error32 = () => {
+var error33 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "ter" },
     file: { unit: "bytes", verb: "ter" },
@@ -7942,7 +8185,7 @@ var error32 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -7995,7 +8238,7 @@ var error32 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Tipo inválido: esperado ${issue2.expected}, recebido ${parsedType6(issue2.input)}`;
+        return `Tipo inválido: esperado ${issue2.expected}, recebido ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Entrada inválida: esperado ${stringifyPrimitive(issue2.values[0])}`;
@@ -8044,7 +8287,7 @@ var error32 = () => {
 };
 function pt_default() {
   return {
-    localeError: error32()
+    localeError: error33()
   };
 }
 // node_modules/zod/v4/locales/ru.js
@@ -8063,7 +8306,7 @@ function getRussianPlural(count, one, few, many) {
   }
   return many;
 }
-var error33 = () => {
+var error34 = () => {
   const Sizable = {
     string: {
       unit: {
@@ -8101,7 +8344,7 @@ var error33 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -8154,7 +8397,7 @@ var error33 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Неверный ввод: ожидалось ${issue2.expected}, получено ${parsedType6(issue2.input)}`;
+        return `Неверный ввод: ожидалось ${issue2.expected}, получено ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Неверный ввод: ожидалось ${stringifyPrimitive(issue2.values[0])}`;
@@ -8208,11 +8451,11 @@ var error33 = () => {
 };
 function ru_default() {
   return {
-    localeError: error33()
+    localeError: error34()
   };
 }
 // node_modules/zod/v4/locales/sl.js
-var error34 = () => {
+var error35 = () => {
   const Sizable = {
     string: { unit: "znakov", verb: "imeti" },
     file: { unit: "bajtov", verb: "imeti" },
@@ -8222,7 +8465,7 @@ var error34 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -8275,7 +8518,7 @@ var error34 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Neveljaven vnos: pričakovano ${issue2.expected}, prejeto ${parsedType6(issue2.input)}`;
+        return `Neveljaven vnos: pričakovano ${issue2.expected}, prejeto ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Neveljaven vnos: pričakovano ${stringifyPrimitive(issue2.values[0])}`;
@@ -8325,11 +8568,11 @@ var error34 = () => {
 };
 function sl_default() {
   return {
-    localeError: error34()
+    localeError: error35()
   };
 }
 // node_modules/zod/v4/locales/sv.js
-var error35 = () => {
+var error36 = () => {
   const Sizable = {
     string: { unit: "tecken", verb: "att ha" },
     file: { unit: "bytes", verb: "att ha" },
@@ -8339,7 +8582,7 @@ var error35 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -8392,7 +8635,7 @@ var error35 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Ogiltig inmatning: förväntat ${issue2.expected}, fick ${parsedType6(issue2.input)}`;
+        return `Ogiltig inmatning: förväntat ${issue2.expected}, fick ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Ogiltig inmatning: förväntat ${stringifyPrimitive(issue2.values[0])}`;
@@ -8443,11 +8686,11 @@ var error35 = () => {
 };
 function sv_default() {
   return {
-    localeError: error35()
+    localeError: error36()
   };
 }
 // node_modules/zod/v4/locales/ta.js
-var error36 = () => {
+var error37 = () => {
   const Sizable = {
     string: { unit: "எழுத்துக்கள்", verb: "கொண்டிருக்க வேண்டும்" },
     file: { unit: "பைட்டுகள்", verb: "கொண்டிருக்க வேண்டும்" },
@@ -8457,7 +8700,7 @@ var error36 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -8510,7 +8753,7 @@ var error36 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `தவறான உள்ளீடு: எதிர்பார்க்கப்பட்டது ${issue2.expected}, பெறப்பட்டது ${parsedType6(issue2.input)}`;
+        return `தவறான உள்ளீடு: எதிர்பார்க்கப்பட்டது ${issue2.expected}, பெறப்பட்டது ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `தவறான உள்ளீடு: எதிர்பார்க்கப்பட்டது ${stringifyPrimitive(issue2.values[0])}`;
@@ -8560,11 +8803,11 @@ var error36 = () => {
 };
 function ta_default() {
   return {
-    localeError: error36()
+    localeError: error37()
   };
 }
 // node_modules/zod/v4/locales/th.js
-var error37 = () => {
+var error38 = () => {
   const Sizable = {
     string: { unit: "ตัวอักษร", verb: "ควรมี" },
     file: { unit: "ไบต์", verb: "ควรมี" },
@@ -8574,7 +8817,7 @@ var error37 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType6 = (data) => {
+  const parsedType7 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -8627,7 +8870,7 @@ var error37 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `ประเภทข้อมูลไม่ถูกต้อง: ควรเป็น ${issue2.expected} แต่ได้รับ ${parsedType6(issue2.input)}`;
+        return `ประเภทข้อมูลไม่ถูกต้อง: ควรเป็น ${issue2.expected} แต่ได้รับ ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `ค่าไม่ถูกต้อง: ควรเป็น ${stringifyPrimitive(issue2.values[0])}`;
@@ -8677,11 +8920,11 @@ var error37 = () => {
 };
 function th_default() {
   return {
-    localeError: error37()
+    localeError: error38()
   };
 }
 // node_modules/zod/v4/locales/tr.js
-var parsedType6 = (data) => {
+var parsedType7 = (data) => {
   const t = typeof data;
   switch (t) {
     case "number": {
@@ -8701,7 +8944,7 @@ var parsedType6 = (data) => {
   }
   return t;
 };
-var error38 = () => {
+var error39 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "olmalı" },
     file: { unit: "bayt", verb: "olmalı" },
@@ -8744,7 +8987,7 @@ var error38 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Geçersiz değer: beklenen ${issue2.expected}, alınan ${parsedType6(issue2.input)}`;
+        return `Geçersiz değer: beklenen ${issue2.expected}, alınan ${parsedType7(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Geçersiz değer: beklenen ${stringifyPrimitive(issue2.values[0])}`;
@@ -8792,11 +9035,11 @@ var error38 = () => {
 };
 function tr_default() {
   return {
-    localeError: error38()
+    localeError: error39()
   };
 }
 // node_modules/zod/v4/locales/uk.js
-var error39 = () => {
+var error40 = () => {
   const Sizable = {
     string: { unit: "символів", verb: "матиме" },
     file: { unit: "байтів", verb: "матиме" },
@@ -8806,7 +9049,7 @@ var error39 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType7 = (data) => {
+  const parsedType8 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -8859,7 +9102,7 @@ var error39 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Неправильні вхідні дані: очікується ${issue2.expected}, отримано ${parsedType7(issue2.input)}`;
+        return `Неправильні вхідні дані: очікується ${issue2.expected}, отримано ${parsedType8(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Неправильні вхідні дані: очікується ${stringifyPrimitive(issue2.values[0])}`;
@@ -8908,7 +9151,7 @@ var error39 = () => {
 };
 function uk_default() {
   return {
-    localeError: error39()
+    localeError: error40()
   };
 }
 
@@ -8917,7 +9160,7 @@ function ua_default() {
   return uk_default();
 }
 // node_modules/zod/v4/locales/ur.js
-var error40 = () => {
+var error41 = () => {
   const Sizable = {
     string: { unit: "حروف", verb: "ہونا" },
     file: { unit: "بائٹس", verb: "ہونا" },
@@ -8927,7 +9170,7 @@ var error40 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType7 = (data) => {
+  const parsedType8 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -8980,7 +9223,7 @@ var error40 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `غلط ان پٹ: ${issue2.expected} متوقع تھا، ${parsedType7(issue2.input)} موصول ہوا`;
+        return `غلط ان پٹ: ${issue2.expected} متوقع تھا، ${parsedType8(issue2.input)} موصول ہوا`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `غلط ان پٹ: ${stringifyPrimitive(issue2.values[0])} متوقع تھا`;
@@ -9030,11 +9273,11 @@ var error40 = () => {
 };
 function ur_default() {
   return {
-    localeError: error40()
+    localeError: error41()
   };
 }
 // node_modules/zod/v4/locales/vi.js
-var error41 = () => {
+var error42 = () => {
   const Sizable = {
     string: { unit: "ký tự", verb: "có" },
     file: { unit: "byte", verb: "có" },
@@ -9044,7 +9287,7 @@ var error41 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType7 = (data) => {
+  const parsedType8 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -9097,7 +9340,7 @@ var error41 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Đầu vào không hợp lệ: mong đợi ${issue2.expected}, nhận được ${parsedType7(issue2.input)}`;
+        return `Đầu vào không hợp lệ: mong đợi ${issue2.expected}, nhận được ${parsedType8(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Đầu vào không hợp lệ: mong đợi ${stringifyPrimitive(issue2.values[0])}`;
@@ -9146,11 +9389,11 @@ var error41 = () => {
 };
 function vi_default() {
   return {
-    localeError: error41()
+    localeError: error42()
   };
 }
 // node_modules/zod/v4/locales/zh-CN.js
-var error42 = () => {
+var error43 = () => {
   const Sizable = {
     string: { unit: "字符", verb: "包含" },
     file: { unit: "字节", verb: "包含" },
@@ -9160,7 +9403,7 @@ var error42 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType7 = (data) => {
+  const parsedType8 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -9213,7 +9456,7 @@ var error42 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `无效输入：期望 ${issue2.expected}，实际接收 ${parsedType7(issue2.input)}`;
+        return `无效输入：期望 ${issue2.expected}，实际接收 ${parsedType8(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `无效输入：期望 ${stringifyPrimitive(issue2.values[0])}`;
@@ -9262,11 +9505,11 @@ var error42 = () => {
 };
 function zh_CN_default() {
   return {
-    localeError: error42()
+    localeError: error43()
   };
 }
 // node_modules/zod/v4/locales/zh-TW.js
-var error43 = () => {
+var error44 = () => {
   const Sizable = {
     string: { unit: "字元", verb: "擁有" },
     file: { unit: "位元組", verb: "擁有" },
@@ -9276,7 +9519,7 @@ var error43 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType7 = (data) => {
+  const parsedType8 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -9329,7 +9572,7 @@ var error43 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `無效的輸入值：預期為 ${issue2.expected}，但收到 ${parsedType7(issue2.input)}`;
+        return `無效的輸入值：預期為 ${issue2.expected}，但收到 ${parsedType8(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `無效的輸入值：預期為 ${stringifyPrimitive(issue2.values[0])}`;
@@ -9379,11 +9622,11 @@ var error43 = () => {
 };
 function zh_TW_default() {
   return {
-    localeError: error43()
+    localeError: error44()
   };
 }
 // node_modules/zod/v4/locales/yo.js
-var error44 = () => {
+var error45 = () => {
   const Sizable = {
     string: { unit: "àmi", verb: "ní" },
     file: { unit: "bytes", verb: "ní" },
@@ -9393,7 +9636,7 @@ var error44 = () => {
   function getSizing(origin) {
     return Sizable[origin] ?? null;
   }
-  const parsedType7 = (data) => {
+  const parsedType8 = (data) => {
     const t = typeof data;
     switch (t) {
       case "number": {
@@ -9446,7 +9689,7 @@ var error44 = () => {
   return (issue2) => {
     switch (issue2.code) {
       case "invalid_type":
-        return `Ìbáwọlé aṣìṣe: a ní láti fi ${issue2.expected}, àmọ̀ a rí ${parsedType7(issue2.input)}`;
+        return `Ìbáwọlé aṣìṣe: a ní láti fi ${issue2.expected}, àmọ̀ a rí ${parsedType8(issue2.input)}`;
       case "invalid_value":
         if (issue2.values.length === 1)
           return `Ìbáwọlé aṣìṣe: a ní láti fi ${stringifyPrimitive(issue2.values[0])}`;
@@ -9494,10 +9737,11 @@ var error44 = () => {
 };
 function yo_default() {
   return {
-    localeError: error44()
+    localeError: error45()
   };
 }
 // node_modules/zod/v4/core/registries.js
+var _a;
 var $output = Symbol("ZodOutput");
 var $input = Symbol("ZodInput");
 
@@ -9547,7 +9791,8 @@ class $ZodRegistry {
 function registry() {
   return new $ZodRegistry;
 }
-var globalRegistry = /* @__PURE__ */ registry();
+(_a = globalThis).__zod_globalRegistry ?? (_a.__zod_globalRegistry = registry());
+var globalRegistry = globalThis.__zod_globalRegistry;
 // node_modules/zod/v4/core/api.js
 function _string(Class2, params) {
   return new Class2({
@@ -9704,6 +9949,15 @@ function _ipv6(Class2, params) {
   return new Class2({
     type: "string",
     format: "ipv6",
+    check: "string_format",
+    abort: false,
+    ...normalizeParams(params)
+  });
+}
+function _mac(Class2, params) {
+  return new Class2({
+    type: "string",
+    format: "mac",
     check: "string_format",
     abort: false,
     ...normalizeParams(params)
@@ -10142,6 +10396,9 @@ function _toLowerCase() {
 function _toUpperCase() {
   return _overwrite((input) => input.toUpperCase());
 }
+function _slugify() {
+  return _overwrite((input) => slugify(input));
+}
 function _array(Class2, element, params) {
   return new Class2({
     type: "array",
@@ -10360,6 +10617,28 @@ function _check(fn, params) {
   ch._zod.check = fn;
   return ch;
 }
+function describe(description) {
+  const ch = new $ZodCheck({ check: "describe" });
+  ch._zod.onattach = [
+    (inst) => {
+      const existing = globalRegistry.get(inst) ?? {};
+      globalRegistry.add(inst, { ...existing, description });
+    }
+  ];
+  ch._zod.check = () => {};
+  return ch;
+}
+function meta(metadata) {
+  const ch = new $ZodCheck({ check: "meta" });
+  ch._zod.onattach = [
+    (inst) => {
+      const existing = globalRegistry.get(inst) ?? {};
+      globalRegistry.add(inst, { ...existing, ...metadata });
+    }
+  ];
+  ch._zod.check = () => {};
+  return ch;
+}
 function _stringbool(Classes, _params) {
   const params = normalizeParams(_params);
   let truthyArray = params.truthy ?? ["true", "1", "yes", "on", "y", "enabled"];
@@ -10438,7 +10717,7 @@ class JSONSchemaGenerator {
     this.seen = new Map;
   }
   process(schema, _params = { path: [], schemaPath: [] }) {
-    var _a;
+    var _a2;
     const def = schema._zod.def;
     const formatMap = {
       guid: "uuid",
@@ -10653,11 +10932,16 @@ class JSONSchemaGenerator {
           }
           case "union": {
             const json = _json;
+            const isDiscriminated = def.discriminator !== undefined;
             const options = def.options.map((x, i) => this.process(x, {
               ...params,
-              path: [...params.path, "anyOf", i]
+              path: [...params.path, isDiscriminated ? "oneOf" : "anyOf", i]
             }));
-            json.anyOf = options;
+            if (isDiscriminated) {
+              json.oneOf = options;
+            } else {
+              json.anyOf = options;
+            }
             break;
           }
           case "intersection": {
@@ -10933,15 +11217,15 @@ class JSONSchemaGenerator {
         }
       }
     }
-    const meta = this.metadataRegistry.get(schema);
-    if (meta)
-      Object.assign(result.schema, meta);
+    const meta2 = this.metadataRegistry.get(schema);
+    if (meta2)
+      Object.assign(result.schema, meta2);
     if (this.io === "input" && isTransforming(schema)) {
       delete result.schema.examples;
       delete result.schema.default;
     }
     if (this.io === "input" && result.schema._prefault)
-      (_a = result.schema).default ?? (_a.default = result.schema._prefault);
+      (_a2 = result.schema).default ?? (_a2.default = result.schema._prefault);
     delete result.schema._prefault;
     const _result = this.seen.get(schema);
     return _result.schema;
@@ -11135,100 +11419,51 @@ function isTransforming(_schema, _ctx) {
   if (ctx.seen.has(_schema))
     return false;
   ctx.seen.add(_schema);
-  const schema = _schema;
-  const def = schema._zod.def;
-  switch (def.type) {
-    case "string":
-    case "number":
-    case "bigint":
-    case "boolean":
-    case "date":
-    case "symbol":
-    case "undefined":
-    case "null":
-    case "any":
-    case "unknown":
-    case "never":
-    case "void":
-    case "literal":
-    case "enum":
-    case "nan":
-    case "file":
-    case "template_literal":
-      return false;
-    case "array": {
-      return isTransforming(def.element, ctx);
-    }
-    case "object": {
-      for (const key in def.shape) {
-        if (isTransforming(def.shape[key], ctx))
-          return true;
-      }
-      return false;
-    }
-    case "union": {
-      for (const option of def.options) {
-        if (isTransforming(option, ctx))
-          return true;
-      }
-      return false;
-    }
-    case "intersection": {
-      return isTransforming(def.left, ctx) || isTransforming(def.right, ctx);
-    }
-    case "tuple": {
-      for (const item of def.items) {
-        if (isTransforming(item, ctx))
-          return true;
-      }
-      if (def.rest && isTransforming(def.rest, ctx))
-        return true;
-      return false;
-    }
-    case "record": {
-      return isTransforming(def.keyType, ctx) || isTransforming(def.valueType, ctx);
-    }
-    case "map": {
-      return isTransforming(def.keyType, ctx) || isTransforming(def.valueType, ctx);
-    }
-    case "set": {
-      return isTransforming(def.valueType, ctx);
-    }
-    case "promise":
-    case "optional":
-    case "nonoptional":
-    case "nullable":
-    case "readonly":
-      return isTransforming(def.innerType, ctx);
-    case "lazy":
-      return isTransforming(def.getter(), ctx);
-    case "default": {
-      return isTransforming(def.innerType, ctx);
-    }
-    case "prefault": {
-      return isTransforming(def.innerType, ctx);
-    }
-    case "custom": {
-      return false;
-    }
-    case "transform": {
-      return true;
-    }
-    case "pipe": {
-      return isTransforming(def.in, ctx) || isTransforming(def.out, ctx);
-    }
-    case "success": {
-      return false;
-    }
-    case "catch": {
-      return false;
-    }
-    case "function": {
-      return false;
-    }
-    default:
+  const def = _schema._zod.def;
+  if (def.type === "transform")
+    return true;
+  if (def.type === "array")
+    return isTransforming(def.element, ctx);
+  if (def.type === "set")
+    return isTransforming(def.valueType, ctx);
+  if (def.type === "lazy")
+    return isTransforming(def.getter(), ctx);
+  if (def.type === "promise" || def.type === "optional" || def.type === "nonoptional" || def.type === "nullable" || def.type === "readonly" || def.type === "default" || def.type === "prefault") {
+    return isTransforming(def.innerType, ctx);
   }
-  throw new Error(`Unknown schema type: ${def.type}`);
+  if (def.type === "intersection") {
+    return isTransforming(def.left, ctx) || isTransforming(def.right, ctx);
+  }
+  if (def.type === "record" || def.type === "map") {
+    return isTransforming(def.keyType, ctx) || isTransforming(def.valueType, ctx);
+  }
+  if (def.type === "pipe") {
+    return isTransforming(def.in, ctx) || isTransforming(def.out, ctx);
+  }
+  if (def.type === "object") {
+    for (const key in def.shape) {
+      if (isTransforming(def.shape[key], ctx))
+        return true;
+    }
+    return false;
+  }
+  if (def.type === "union") {
+    for (const option of def.options) {
+      if (isTransforming(option, ctx))
+        return true;
+    }
+    return false;
+  }
+  if (def.type === "tuple") {
+    for (const item of def.items) {
+      if (isTransforming(item, ctx))
+        return true;
+    }
+    if (def.rest && isTransforming(def.rest, ctx))
+      return true;
+    return false;
+  }
+  return false;
 }
 // node_modules/zod/v4/core/json-schema.js
 var exports_json_schema = {};
@@ -11338,8 +11573,8 @@ var ZodType = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
   };
   inst.clone = (def2, params) => clone(inst, def2, params);
   inst.brand = () => inst;
-  inst.register = (reg, meta) => {
-    reg.add(inst, meta);
+  inst.register = (reg, meta2) => {
+    reg.add(inst, meta2);
     return inst;
   };
   inst.parse = (data, params) => parse3(inst, data, params, { callee: inst.parse });
@@ -11415,6 +11650,7 @@ var _ZodString = /* @__PURE__ */ $constructor("_ZodString", (inst, def) => {
   inst.normalize = (...args) => inst.check(_normalize(...args));
   inst.toLowerCase = () => inst.check(_toLowerCase());
   inst.toUpperCase = () => inst.check(_toUpperCase());
+  inst.slugify = () => inst.check(_slugify());
 });
 var ZodString = /* @__PURE__ */ $constructor("ZodString", (inst, def) => {
   $ZodString.init(inst, def);
@@ -11553,6 +11789,13 @@ var ZodIPv4 = /* @__PURE__ */ $constructor("ZodIPv4", (inst, def) => {
 });
 function ipv42(params) {
   return _ipv4(ZodIPv4, params);
+}
+var ZodMAC = /* @__PURE__ */ $constructor("ZodMAC", (inst, def) => {
+  $ZodMAC.init(inst, def);
+  ZodStringFormat.init(inst, def);
+});
+function mac2(params) {
+  return _mac(ZodMAC, params);
 }
 var ZodIPv6 = /* @__PURE__ */ $constructor("ZodIPv6", (inst, def) => {
   $ZodIPv6.init(inst, def);
@@ -12262,6 +12505,8 @@ function refine(fn, _params = {}) {
 function superRefine(fn) {
   return _superRefine(fn);
 }
+var describe2 = describe;
+var meta2 = meta;
 function _instanceof(cls, params = {
   error: `Input not instance of ${cls.name}`
 }) {
