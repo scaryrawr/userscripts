@@ -21,6 +21,7 @@ const getApiPath = (): string => {
 const getOsTheme = (): Theme => (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
 const getCurrentTheme = (): Theme | undefined => {
+  if (!document.body) return undefined;
   if (document.body.classList.contains(CLASS_DARK)) return "dark";
   if (document.body.classList.contains(CLASS_LIGHT)) return "light";
   return undefined;
@@ -28,6 +29,7 @@ const getCurrentTheme = (): Theme | undefined => {
 
 const applyTheme = (theme: Theme): void => {
   const { body } = document;
+  if (!body) return;
   if (theme === "dark") {
     body.classList.remove(CLASS_LIGHT);
     body.classList.add(CLASS_DARK);
@@ -92,7 +94,15 @@ const waitForTheme = (): void => {
 
 const main = (): void => {
   waitForTheme();
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => void syncTheme());
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  // addEventListener on MediaQueryList was added in Safari 14 / iOS Safari 14;
+  // fall back to the deprecated addListener for older versions.
+  if (typeof mediaQuery.addEventListener === "function") {
+    mediaQuery.addEventListener("change", () => void syncTheme());
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    mediaQuery.addListener(() => void syncTheme());
+  }
 };
 
 main();
